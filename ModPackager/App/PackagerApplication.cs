@@ -52,8 +52,8 @@ public class PackagerApplication : IPackagerApplication
         var tempDir = new DirectoryInfo(Path.Combine(assemblyDir.FullName, "tmp"));
         var outputDir = new DirectoryInfo(Path.Combine(assemblyDir.FullName, "release"));
         var tempAssemblyPath = Path.Combine(tempDir.FullName, assemblyName);
-        var alc = new CustomAssemblyLoadContext2();
-
+        var alc = new ModAssemblyLoadContext();
+        
         ValidateAssemblyPath(assemblyPath);
         UpdateVanillaDependencies(assemblyDir, alc);
         await GenerateModInfoFileAsync(args, assemblyPath, tempDir);
@@ -87,7 +87,7 @@ public class PackagerApplication : IPackagerApplication
         }
     }
 
-    private void UpdateVanillaDependencies(DirectoryInfo _, CustomAssemblyLoadContext2 __)
+    private void UpdateVanillaDependencies(DirectoryInfo _, ModAssemblyLoadContext __)
     {
         _logger.LogInformation("Updating vanilla dependencies...");
         var dependencies = _config
@@ -170,6 +170,7 @@ public class PackagerApplication : IPackagerApplication
 
     private async Task GenerateModInfoFileAsync(CommandLineArgs args, FileInfo targetPath, DirectoryInfo targetDir)
     {
+        if (!targetDir.Exists) targetDir.Create();
         if (File.Exists(Path.Combine(targetDir.FullName, "modinfo.json"))) return;
         _logger.LogInformation("Generating `modinfo.json` file...");
         await ModInfoFileGenerator.App.ConvertAsync(new()
@@ -268,9 +269,17 @@ public class PackagerApplication : IPackagerApplication
             _logger.LogError("Assembly file {FilePath} does not exist. Cannot create mod archive.", assemblyPath);
             return;
         }
-        var assembly = Assembly.LoadFrom(assemblyPath);
+
+        var context = new ModAssemblyLoadContext();
+        var assembly = context.LoadFromAssemblyPath(assemblyPath);
+        if (assembly == null)
+        {
+            _logger.LogError("Failed to load assembly from {FilePath}. Cannot create mod archive.", assemblyPath);
+            return;
+        }
         var version = assembly.GetVersion(args.VersioningStyle);
         var configuration = assembly.GetConfigurationSuffix();
+        context.Unload();
 
         _logger.LogInformation("Creating Mod Archive...");
         var archiveName = $"{projectName}_v{version}{configuration}.zip";
