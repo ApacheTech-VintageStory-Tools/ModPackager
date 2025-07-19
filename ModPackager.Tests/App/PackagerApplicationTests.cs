@@ -6,39 +6,38 @@ using Microsoft.Extensions.Logging;
 using System;
 using Microsoft.Extensions.Configuration;
 
-namespace ModPackager.Tests.App
+namespace ModPackager.Tests.App;
+
+public class PackagerApplicationTests
 {
-    public class PackagerApplicationTests
+    private Mock<ILogger<PackagerApplication>>? _logger;
+    private Mock<IConfiguration>? _config;
+
+    private PackagerApplication? _app;
+
+    [SetUp]
+    public void Setup()
     {
-        private Mock<ILogger<PackagerApplication>>? _logger;
-        private Mock<IConfiguration>? _config;
+        _logger = new Mock<ILogger<PackagerApplication>>();
+        _config = new Mock<IConfiguration>();
+        _app = new(_logger.Object, _config.Object);
+    }
 
-        private PackagerApplication? _app;
-
-        [SetUp]
-        public void Setup()
+    [Test]
+    public void PackagerApplication_ShouldThrow_WhenPassedNullAssemblyPath()
+    {
+        var args = new CommandLineArgs
         {
-            _logger = new Mock<ILogger<PackagerApplication>>();
-            _config = new Mock<IConfiguration>();
-            _app = new(_logger.Object, _config.Object);
-        }
+            AssemblyPath = null
+        };
 
-        [Test]
-        public void PackagerApplication_ShouldThrow_WhenPassedNullAssemblyPath()
-        {
-            var args = new CommandLineArgs
-            {
-                AssemblyPath = null
-            };
+        _app!.Invoking(async app => await app.PackageModAsync(args))
+            .Should()
+            .ThrowAsync<ArgumentNullException>();
+    }
 
-            _app!.Invoking(async app => await app.PackageMod(args))
-                .Should()
-                .ThrowAsync<ArgumentNullException>();
-        }
-
-        [Test]
-        public void PackagerApplication_Should_When()
-        {
-        }
+    [Test]
+    public void PackagerApplication_Should_When()
+    {
     }
 }

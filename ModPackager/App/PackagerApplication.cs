@@ -1,20 +1,22 @@
 ﻿using CommandLine;
-using System.Diagnostics;
-using System.IO;
-using System.Runtime.CompilerServices;
-using System.Xml;
-using System.IO.Compression;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using ModPackager.Extensions;
-using ModPackager.Helpers;
-using System;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using ModPackager.AssemblyLoad;
+using ModPackager.DataStructures;
+using ModPackager.Extensions;
+using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.IO.Compression;
+using System.Linq;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Xml;
 
 [assembly: InternalsVisibleTo("ModPackager.Tests")]
 
@@ -36,10 +38,10 @@ public class PackagerApplication : IPackagerApplication
     {
         await Parser.Default
             .ParseArguments<CommandLineArgs>(args)
-            .WithParsedAsync(PackageMod);
+            .WithParsedAsync(PackageModAsync);
     }
 
-    internal async Task PackageMod(CommandLineArgs args)
+    internal async Task PackageModAsync(CommandLineArgs args)
     {
         _logger.LogInformation("Packaging Mod...");
         var assemblyPath = new FileInfo(args.AssemblyPath!);
@@ -54,30 +56,30 @@ public class PackagerApplication : IPackagerApplication
 
         ValidateAssemblyPath(assemblyPath);
         UpdateVanillaDependencies(assemblyDir, alc);
+        await GenerateModInfoFileAsync(args, assemblyPath, tempDir);
         CreateOutputFolder(outputDir);
         CreateIntermediateFolder(tempDir);
         var xmlSaProj = ParseSmartAssemblyProjectFile(saprojPath);
-        var root = xmlSaProj["SmartAssemblyProject"];
+        var root = xmlSaProj["SmartAssemblyProject"]!;
         FixSmartAssemblyProjectInputAssembly(root, assemblyPath);
         FixSmartAssemblyProjectOutputFolder(root, tempAssemblyPath);
         var assemblies = root["Configuration"]!["Assemblies"]!.ChildNodes;
         var mergedAssemblies = CollateMergedAssemblies(assemblies, assemblyDir);
         var embeddedAssemblies = CollateEmbeddedAssemblies(assemblies, assemblyDir);
         SaveSmartAssemblyProjectFile(xmlSaProj, saprojPath);
-        await RunSmartAssemblyProjectFile(saprojPath);
-        var (version, configuration) = await GenerateModInfo(args, tempAssemblyPath, tempDir.FullName, alc);
+        await RunSmartAssemblyProjectFileAsync(saprojPath);
         RemoveFilesHandledBySmartAssembly(assemblyPath, saprojPath, mergedAssemblies, embeddedAssemblies);
         RemoveCompileTimeLibraries(assemblyDir);
         RemoveJunkFiles(assemblyDir);
         MoveIncludesFolder(assemblyDir, tempDir.FullName);
         MoveLibrariesNotHandledBySmartAssembly(assemblyDir, tempDir.FullName);
         CopyMergedAssemblyToDebugDirectory(tempAssemblyPath, args.DebugOutputDir);
-        CreateModArchive(tempDir.FullName, outputDir.FullName, projectName, version, configuration);
+        CreateModArchive(args, tempDir.FullName, outputDir.FullName, projectName);
         CleanTemporaryFolders(tempDir);
         _logger.LogInformation("Packaging complete. Mod Archive created successfully.");
     }
 
-    private void ValidateAssemblyPath(FileInfo assemblyPath)
+    private static void ValidateAssemblyPath(FileInfo assemblyPath)
     {
         if (!assemblyPath.Exists)
         {
@@ -85,7 +87,7 @@ public class PackagerApplication : IPackagerApplication
         }
     }
 
-    private void UpdateVanillaDependencies(DirectoryInfo assemblyDir, CustomAssemblyLoadContext2 alc)
+    private void UpdateVanillaDependencies(DirectoryInfo _, CustomAssemblyLoadContext2 __)
     {
         _logger.LogInformation("Updating vanilla dependencies...");
         var dependencies = _config
@@ -159,22 +161,23 @@ public class PackagerApplication : IPackagerApplication
         xmlSaProj.Save(saprojPath);
     }
 
-    private async Task RunSmartAssemblyProjectFile(string saprojPath)
+    private async Task RunSmartAssemblyProjectFileAsync(string saprojPath)
     {
         _logger.LogInformation("Running SmartAssembly Project file...");
         var saConsole = _config.GetSection("SmartAssembly").GetValue<string>("Location");
         await Process.Start($@"{saConsole}", saprojPath).WaitForExitAsync();
     }
 
-    private async Task<(string version, string configuration)> GenerateModInfo(CommandLineArgs args, string tempAssemblyPath, string tempDir, CustomAssemblyLoadContext2 alc)
+    private async Task GenerateModInfoFileAsync(CommandLineArgs args, FileInfo targetPath, DirectoryInfo targetDir)
     {
+        if (File.Exists(Path.Combine(targetDir.FullName, "modinfo.json"))) return;
         _logger.LogInformation("Generating `modinfo.json` file...");
-        Thread.Sleep(1000);
-        var generator = new GenModInfo(args, tempAssemblyPath, Path.Combine(tempDir, "modinfo.json"));
-        await generator.ResolveDependencies(alc);
-        var version = GenModInfo.Version;
-        var configuration = GenModInfo.Configuration;
-        return (version, configuration);
+        await ModInfoFileGenerator.App.ConvertAsync(new()
+        {
+            TargetPath = targetPath.FullName,
+            TargetDir = targetDir.FullName,
+            VersionType = args.VersioningStyle == VersioningStyle.Static ? "static" : "assembly"
+        });
     }
 
     private void RemoveFilesHandledBySmartAssembly(FileInfo assemblyPath, string saprojPath, List<FileInfo> mergedAssemblies, List<FileInfo> embeddedAssemblies)
@@ -257,8 +260,18 @@ public class PackagerApplication : IPackagerApplication
         File.Copy(tempAssemblyPath, debugAssemblyPath, true);
     }
 
-    private void CreateModArchive(string tempDir, string outputDir, string projectName, string version, string configuration)
+    private void CreateModArchive(CommandLineArgs args, string tempDir, string outputDir, string projectName)
     {
+        var assemblyPath = Path.Combine(tempDir, $"{projectName}.dll");
+        if (!File.Exists(assemblyPath))
+        {
+            _logger.LogError("Assembly file {FilePath} does not exist. Cannot create mod archive.", assemblyPath);
+            return;
+        }
+        var assembly = Assembly.LoadFrom(assemblyPath);
+        var version = assembly.GetVersion(args.VersioningStyle);
+        var configuration = assembly.GetConfigurationSuffix();
+
         _logger.LogInformation("Creating Mod Archive...");
         var archiveName = $"{projectName}_v{version}{configuration}.zip";
         var archivePath = Path.Combine(outputDir, archiveName);
