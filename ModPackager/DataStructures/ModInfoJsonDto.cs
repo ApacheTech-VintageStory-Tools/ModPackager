@@ -1,8 +1,9 @@
 ﻿using System.Collections.Generic;
+using ModPackager.JsonConverters;
 using Newtonsoft.Json;
 using Vintagestory.API.Common;
 
-namespace ModPackager.App.GenModInfo
+namespace ModPackager.DataStructures
 {
     [JsonObject]
     public record ModInfoJsonDto
@@ -10,7 +11,7 @@ namespace ModPackager.App.GenModInfo
         [JsonProperty("type", Required = Required.Always)]
         public string Type { get; init; } = "Code";
 
-        [JsonProperty("name")] 
+        [JsonProperty("name")]
         public string Name { get; init; } = "Untitled Mod";
 
         [JsonProperty("modId", Required = Required.Always)]
@@ -29,7 +30,7 @@ namespace ModPackager.App.GenModInfo
         public string Website { get; init; } = "https://apachetech.co.uk";
 
         [JsonProperty("authors", Required = Required.Always)]
-        public IReadOnlyList<string> Authors { get; init; } = new List<string> {  "ApacheTech Solutions" };
+        public IReadOnlyList<string> Authors { get; init; } = new List<string> { "ApacheTech Solutions" };
 
         [JsonProperty("contributors", NullValueHandling = NullValueHandling.Ignore)]
         public IReadOnlyList<string> Contributors { get; init; } = new List<string> { "ApacheTech Solutions" };

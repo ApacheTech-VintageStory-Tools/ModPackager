@@ -1,12 +1,14 @@
 ﻿using System;
 using System.IO;
-using Newtonsoft.Json;
-using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using System.Threading.Tasks;
+using ModPackager.App;
+using ModPackager.AssemblyLoad;
+using ModPackager.JsonConverters;
+using Newtonsoft.Json;
 
-namespace ModPackager.App.GenModInfo
+namespace ModPackager.Helpers
 {
     internal class GenModInfo
     {
@@ -33,10 +35,10 @@ namespace ModPackager.App.GenModInfo
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private void ExecuteAndUnload(string assemblyPath, out WeakReference alcWeakRef)
+        private void ExecuteAndUnload(CustomAssemblyLoadContext2 alc, out WeakReference alcWeakRef)
         {
-            var alc = new TestAssemblyLoadContext();
-            Assembly a = alc.LoadFromAssemblyPath(assemblyPath);
+            //var a = alc.LoadAssemblyFromFileInfo(_assemblyFile);
+            var a = alc.LoadFromAssemblyPath(_assemblyFile.FullName);
             alcWeakRef = new WeakReference(alc, trackResurrection: true);
 
             var modInfo = a.PopulateJsonDto(_args.VersioningStyle);
@@ -47,35 +49,15 @@ namespace ModPackager.App.GenModInfo
         }
 
 
-        public Task DoStuff()
+        public Task ResolveDependencies(CustomAssemblyLoadContext2 alc)
         {
-            ExecuteAndUnload(_assemblyFile.FullName, out var testAlcWeakRef);
-            for (var i = 0; testAlcWeakRef.IsAlive && (i < 10); i++)
+            ExecuteAndUnload(alc, out var testAlcWeakRef);
+            for (var i = 0; testAlcWeakRef.IsAlive && i < 10; i++)
             {
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
             }
             return Task.CompletedTask;
-        }
-    }
-
-    internal class TestAssemblyLoadContext : AssemblyLoadContext
-    {
-        private readonly AssemblyDependencyResolver? _resolver;
-
-        public TestAssemblyLoadContext(string mainAssemblyToLoadPath) : base(true)
-        {
-            _resolver = new AssemblyDependencyResolver(mainAssemblyToLoadPath);
-        }
-
-        public TestAssemblyLoadContext() : base(true)
-        {
-        }
-
-        protected override Assembly? Load(AssemblyName name)
-        {
-            var assemblyPath = _resolver?.ResolveAssemblyToPath(name);
-            return assemblyPath is null ? null : LoadFromAssemblyPath(assemblyPath);
         }
     }
 }

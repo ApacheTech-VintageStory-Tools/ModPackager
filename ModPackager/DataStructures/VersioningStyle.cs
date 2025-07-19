@@ -1,4 +1,4 @@
-﻿namespace ModPackager.App
+﻿namespace ModPackager.DataStructures
 {
     public enum VersioningStyle
     {

@@ -1,4 +1,5 @@
 ﻿using CommandLine;
+using ModPackager.DataStructures;
 
 namespace ModPackager.App
 {
@@ -28,5 +29,11 @@ namespace ModPackager.App
             MetaValue = "$(TargetDir)$(ProjectName).saproj",
             HelpText = "The fully qualified path to the .saproj to use for mod assembly packing. MSBuild: $(TargetDir)$(ProjectName).saproj")]
         public string? SmartAssemblyProjectPath { get; set; }
+
+        [Option('d', "debug",
+            Required = false,
+            MetaValue = "$(SolutionDir).debug\\$(ProjectName)",
+            HelpText = "The fully qualified path to the directory to save the merged file, for debug purposes. MSBuild: $(SolutionDir).debug\\$(ProjectName)")]
+        public string? DebugOutputDir { get; set; }
     }
 }

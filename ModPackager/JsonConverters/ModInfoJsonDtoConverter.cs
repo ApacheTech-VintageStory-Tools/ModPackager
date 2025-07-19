@@ -3,16 +3,18 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
+using ModPackager.DataStructures;
+using ModPackager.Helpers;
 using Vintagestory.API.Common;
 
-namespace ModPackager.App.GenModInfo
+namespace ModPackager.JsonConverters
 {
     internal static class ModInfoJsonDtoConverter
     {
         internal static ModInfoJsonDto PopulateJsonDto(this Assembly assembly, VersioningStyle versionType)
         {
             var modInfo = ExtractModFileInfo(assembly);
-            if (modInfo == null) throw new CustomAttributeFormatException("No ModInfoAttribute found in assembly.");
+            if (modInfo == null) throw new CustomAttributeFormatException($"No ModInfoAttribute found in assembly: {assembly.FullName}.");
             var dependencies = assembly.FindAllModDependencies();
             var debugMode = assembly.GetCustomAttributes(false).OfType<DebuggableAttribute>().Any(da => da.IsJITTrackingEnabled);
             var version = versionType == VersioningStyle.Static

@@ -5,7 +5,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Vintagestory.API.Common;
 
-namespace ModPackager.App.GenModInfo
+namespace ModPackager.JsonConverters
 {
     public class DependenciesConverter : JsonConverter
     {
@@ -15,8 +15,8 @@ namespace ModPackager.App.GenModInfo
         }
 
         public override object ReadJson(
-            JsonReader reader, 
-            Type objectType, 
+            JsonReader reader,
+            Type objectType,
             object? existingValue,
             JsonSerializer serializer)
         {
