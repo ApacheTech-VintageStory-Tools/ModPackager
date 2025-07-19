@@ -250,8 +250,11 @@ public class PackagerApplication : IPackagerApplication
         var debugDir = new DirectoryInfo(debugOutputDir);
         if (!debugDir.Exists) debugDir.Create();
         var debugAssemblyPath = Path.Combine(debugDir.FullName, Path.GetFileName(tempAssemblyPath));
-        if (File.Exists(debugAssemblyPath)) File.Delete(debugAssemblyPath);
-        File.Copy(tempAssemblyPath, debugAssemblyPath);
+        var unmergedDebugDir = Path.Combine(debugDir.FullName, "unmerged");
+        Directory.CreateDirectory(unmergedDebugDir);
+        var unmergedDebugAssemblyPath = Path.Combine(unmergedDebugDir, Path.GetFileName(tempAssemblyPath));
+        File.Copy(debugAssemblyPath, unmergedDebugAssemblyPath, true);
+        File.Copy(tempAssemblyPath, debugAssemblyPath, true);
     }
 
     private void CreateModArchive(string tempDir, string outputDir, string projectName, string version, string configuration)
